@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 
 load_dotenv(dotenv_path="/home/harshini/capstone/src/.env")
 yolo_path = os.getenv("yolo_path")
-data_files_path = os.getenv("data_files_path")
+data_files_path = os.getenv("image_output_path")
 
 class visionHandler:
     def __init__(self, logger):
@@ -28,6 +28,8 @@ class visionHandler:
         except Exception as e:
             self.logger.info(f"Error starting RealSense pipeline: {e}")
 
+        self.logger.info("Vision Handler started")
+
     def capture_frame(self):
         # Get frames from camera
         frames = self.pipe.wait_for_frames()
@@ -40,7 +42,7 @@ class visionHandler:
             return 
 
         frame = np.asanyarray(color_frame.get_data())
-        return frame
+        return frame, depth_frame
     
     def process_frame(self, frame):
         results = self.yolo_model(frame, verbose=False)
@@ -61,11 +63,11 @@ class visionHandler:
         return frame
 
     def detect_objects(self):
-        frame = self.capture_frame()
+        frame, depth_frame = self.capture_frame()
         
-        if frame is None:
+        if frame is None or depth_frame is None:
             self.logger.info("No frame captured in detect_objects function")
-            return {}
+            return {}, None
         
         results = self.process_frame(frame)
         frame_with_boxes = self.draw_bounding_boxes(frame, results)
@@ -100,4 +102,19 @@ class visionHandler:
                     "centroid": centroid,
                 }
 
-        return objects_info
+        return objects_info, depth_frame
+
+    def convert2Dto3D(self, obj_list, target_item, depth_frame):
+        if target_item not in obj_list:
+            self.logger.info(f"Target item '{target_item} not found in detected objects")
+            return None
+        
+        item_list = obj_list[target_item]
+        centroid = tuple(item_list["centroid"])
+        depth_value = depth_frame.get_distance(centroid[0], centroid[1])
+        intrinsics = depth_frame.profile.as_video_stream_profile().get_intrinsics() # Get intrinsic parameters of the RealSense camera
+        point_3D = rs.rs2_deproject_pixel_to_point(intrinsics, [centroid[0], centroid[1]], depth_value) # Calculate real-world coordinates using intrinsic parameters
+        x, y, z = point_3D[0] * 1000, point_3D[1] * 1000, point_3D[2] * 1000
+        self.logger.info(f"3D Coordinates - X: {x} mm, Y: {y} mm, Z: {z} mm")
+        
+        return (x,y,z) 
