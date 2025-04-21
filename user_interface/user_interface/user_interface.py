@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import rclpy 
+import rclpy
 from rclpy.node import Node
 import sys
 from flask import Flask, render_template, request
@@ -14,7 +14,7 @@ import speech_recognition as sr
 import threading
 from cv_bridge import CvBridge
 
-# Setup flask app
+# Setup Flask app
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
@@ -30,7 +30,6 @@ class UI(Node):
 
         self.bridge = CvBridge()
         self.recognizer = sr.Recognizer()
-        self.listening = True  # Toggle for speech recognition
 
     def display_chat_response(self, msg):
         self.get_logger().info(f"LLM response: {msg.data}")
@@ -38,7 +37,6 @@ class UI(Node):
 
     def display_feed(self, msg):
         try:
-            # self.get_logger().info(f"Camera feed: {msg}")
             frame = self.bridge.imgmsg_to_cv2(msg, "bgr8")
             if frame is None or frame.size == 0:
                 self.get_logger().error("Received an empty frame!")
@@ -56,22 +54,23 @@ class UI(Node):
             self.get_logger().info("Listening...")
             socketio.emit('speech_status', {'status': 'Listening...'})
 
-            while self.listening:
+            try:
+                audio = self.recognizer.listen(source, timeout=5)
+                socketio.emit("speech_status", {"status": "Processing..."})
+
                 try:
-                    audio = self.recognizer.listen(source, timeout=5)
-                    socketio.emit("speech_status", {"status": "Processing..."})
+                    live_text = self.recognizer.recognize_google(audio)
+                    socketio.emit("speech_result", {"text": live_text})
+                    self.publisher.publish(String(data=live_text))
+                except sr.UnknownValueError:
+                    socketio.emit("speech_status", {"text": "Could not understand."})
+                except sr.RequestError:
+                    socketio.emit("speech_status", {"text": "Speech recognition service unavailable."})
 
-                    try:
-                        live_text = self.recognizer.recognize_google(audio)
-                        socketio.emit("speech_result", {"text": live_text})
-                        self.publisher.publish(String(data=live_text))
-                    except sr.UnknownValueError:
-                        socketio.emit("speech_result", {"text": "Could not understand."})
-                    except sr.RequestError:
-                        socketio.emit("speech_result", {"text": "Speech recognition service unavailable."})
+            except Exception as e:
+                socketio.emit("speech_result", {"text": f"Error: {str(e)}"})
 
-                except Exception as e:
-                    socketio.emit("speech_result", {"text": f"Error: {str(e)}"})
+        socketio.emit('speech_status', {'status': 'Click button to start listening'})
 
 @app.route('/')
 def index():
@@ -86,14 +85,8 @@ def handle_user_input(data):
 
 @socketio.on('start_speech_recognition')
 def handle_speech_request():
-    if ui_node.listening:
-        ui_node.listening = False
-        socketio.emit('speech_status', {'status': 'Stopped Listening'})
-        ui_node.get_logger().info("Speech recognition stopped.")
-    else:
-        ui_node.listening = True
-        socketio.emit('speech_status', {'status': 'Listening...'})
-        threading.Thread(target=ui_node.recognize_speech, daemon=True).start()
+    """ Start speech recognition only when the button is clicked. """
+    threading.Thread(target=ui_node.recognize_speech, daemon=True).start()
 
 def run_flask():
     """Run Flask in a separate thread."""

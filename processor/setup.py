@@ -15,7 +15,16 @@ setup(
         'processor.llm_handler',
         'processor.vision_handler'
     ],
-    install_requires=['setuptools'],
+    install_requires=[
+        'setuptools', 
+        'flask',
+        'opencv-python',
+        'numpy',
+        'pyrealsense2',
+        'ultralytics',
+        'python-dotenv',
+        'google-generativeai'
+        ],
     zip_safe=True,
     maintainer='harshini',
     maintainer_email='2102216@sit.singaporetech.edu.sg',
