@@ -10,8 +10,8 @@ This repository is organised into key modules:
 --
 
 ## Repository Structure
-ai-cobot/`/n`
-|-- processor/processor # AI and data processing module`/n`
+<pre><code>ai-cobot/
+|-- processor/processor # AI and data processing module
     |-- llm_handler.py
     |-- processor.py
     |-- vision_handler.py
@@ -20,4 +20,5 @@ ai-cobot/`/n`
 |-- user_interface/user_interface # User interface layer
     |-- user_interface.py
     |-- templates/index.html
-|-- test_files/ # Test and validation scripts
+|-- test_files/ # Test and validation scripts</code></pre>
+
